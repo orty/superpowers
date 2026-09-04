@@ -147,6 +147,13 @@ echo "SessionStart hook output tests"
 # Windows dispatches via Git Bash (or fails with an actionable error) instead
 # of PowerShell/cmd.exe, whose parsers break on the quoted command string
 # (PowerShell ParserError; cmd.exe quote-stripping on paths with metacharacters).
+#
+# VS Code Copilot ignores shell:"bash" and runs the hook through PowerShell
+# regardless (#1225, #2189), where the quoted plugin-root path parses as a
+# string expression and the trailing bareword fails with "Unexpected token
+# 'session-start'". The `powershell` key supplies the same dispatch behind
+# the `&` call operator. Pin it to exactly "& " + command so the two forms
+# cannot drift apart (a different script, argument, or quoting on one side).
 if node -e '
 const hooks = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const entry = hooks.hooks.SessionStart[0].hooks[0];
@@ -158,10 +165,14 @@ if (!/run-hook\.cmd" session-start$/.test(entry.command)) {
   console.error(`unexpected SessionStart command shape: ${entry.command}`);
   process.exit(1);
 }
+if (entry.powershell !== `& ${entry.command}`) {
+  console.error(`SessionStart powershell key is ${JSON.stringify(entry.powershell)}, expected "& " + command for VS Code Copilot (#1225)`);
+  process.exit(1);
+}
 ' "$REPO_ROOT/hooks/hooks.json"; then
-    pass "hooks.json registers SessionStart with shell:bash dispatch"
+    pass "hooks.json registers SessionStart with shell:bash and matching powershell dispatch"
 else
-    fail "hooks.json registers SessionStart with shell:bash dispatch"
+    fail "hooks.json registers SessionStart with shell:bash and matching powershell dispatch"
 fi
 
 claude_home="$(make_home claude-code)"

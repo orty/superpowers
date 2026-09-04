@@ -52,6 +52,7 @@ hooks/
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
             "shell": "bash",
+            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
             "async": false
           }
         ]
@@ -62,6 +63,21 @@ hooks/
 ```
 
 The path is quoted because `${CLAUDE_PLUGIN_ROOT}` may contain spaces.
+
+### The `powershell` key (VS Code Copilot)
+
+VS Code Copilot's agent plugins ignore `"shell": "bash"` and run the hook
+through PowerShell on Windows. PowerShell parses a leading quoted path as a
+string expression, so the `command` form fails with
+`Unexpected token 'session-start'` before anything runs
+([#1225](https://github.com/obra/superpowers/issues/1225)). The `powershell`
+key gives those hosts the same dispatch behind the `&` call operator, which
+invokes the quoted path instead of evaluating it. It reuses `run-hook.cmd`, so
+Git Bash discovery stays in one place. Claude Code and the other harnesses
+ignore the key and keep using `command` with `shell: "bash"`.
+
+`tests/hooks/test-session-start.sh` pins `powershell` to exactly
+`"& " + command` so the two forms cannot drift apart.
 
 ## How `run-hook.cmd` Works at a High Level
 
